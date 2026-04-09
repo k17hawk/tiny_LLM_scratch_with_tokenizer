@@ -213,3 +213,9 @@ __marimo__/
 *.json
 *.vocab
 archive/
+Untitled.ipynb
+*.env
+*.safetensors
+OLMo-2-1124-7B/
+.env
+process_training
