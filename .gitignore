@@ -220,3 +220,4 @@ OLMo-2-1124-7B/
 .env
 process_training
 dataset/
+*.gguf
