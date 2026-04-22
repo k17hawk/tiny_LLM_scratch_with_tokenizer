@@ -16,7 +16,7 @@ from pathlib import Path
 import requests
 
 
-API_KEY             = "sk-xxxx"         
+API_KEY             = "***********************"         
 BASE_URL            = "https://api.deepseek.com/v1/chat/completions"
 MODEL               = "deepseek-chat"
 
@@ -527,30 +527,45 @@ class CheckpointManager:
             print(f"  ⚠️ Failed to save checkpoint: {e}")
 
     def load_latest_checkpoint(self):
-        """
-        Returns (samples, completed_count, type_schedule, instruction_list, total_target)
-        or (None, 0, None, None, 0) if no checkpoint found.
-        """
         try:
-            checkpoints = sorted(Path(self.checkpoint_dir).glob("checkpoint_*.json"))
-            print(f"  🔍 Found {len(checkpoints)} checkpoint files in {self.checkpoint_dir}")
-            if not checkpoints:
-                print(f"  ℹ️ No checkpoints found in {self.checkpoint_dir}")
-                return None, 0, None, None, 0
+            checkpoints = list(Path(self.checkpoint_dir).glob("checkpoint_*.json"))
+            backups     = list(Path(self.checkpoint_dir).glob("samples_backup_*.json"))
 
-            latest = max(checkpoints, key=lambda x: x.stat().st_mtime)
-            print(f"  📂 Loading checkpoint: {latest.name}")
-            with open(latest, "r", encoding="utf-8") as f:
-                checkpoint = json.load(f)
+            print(f"  🔍 Found {len(checkpoints)} checkpoints, {len(backups)} backups")
 
-            print(f"  🔄 Resuming from checkpoint: {checkpoint['completed_count']} samples")
-            return (
-                checkpoint["samples"],
-                checkpoint["completed_count"],
-                checkpoint["type_schedule"],
-                checkpoint["instruction_list"],
-                checkpoint["total_target"]
-            )
+            latest_checkpoint = max(checkpoints, key=lambda x: x.stat().st_mtime) if checkpoints else None
+            latest_backup     = max(backups, key=lambda x: x.stat().st_mtime) if backups else None
+
+            # Extract counts
+            def extract_count(path):
+                return int(re.search(r'_(\d+)\.json$', path.name).group(1))
+
+            checkpoint_count = extract_count(latest_checkpoint) if latest_checkpoint else 0
+            backup_count     = extract_count(latest_backup) if latest_backup else 0
+
+            # 🔥 Choose the better one
+            if latest_backup and backup_count > checkpoint_count:
+                print(f"  🚀 Using backup instead of checkpoint: {latest_backup.name}")
+                with open(latest_backup, "r", encoding="utf-8") as f:
+                    samples = json.load(f)
+
+                return samples, len(samples), None, None, len(samples)
+
+            elif latest_checkpoint:
+                print(f"  📂 Loading checkpoint: {latest_checkpoint.name}")
+                with open(latest_checkpoint, "r", encoding="utf-8") as f:
+                    checkpoint = json.load(f)
+
+                return (
+                    checkpoint["samples"],
+                    checkpoint["completed_count"],
+                    checkpoint["type_schedule"],
+                    checkpoint["instruction_list"],
+                    checkpoint["total_target"]
+                )
+
+            return None, 0, None, None, 0
+
         except Exception as e:
             print(f"  ⚠️ Failed to load checkpoint: {e}")
             return None, 0, None, None, 0
@@ -761,11 +776,15 @@ def generate_training_data(
     checkpoint_manager = CheckpointManager()
     credit_tracker     = CreditTracker(max_budget_usd=max_budget_usd)
 
-    # ── Load checkpoint or start fresh ──────────────────────
     samples          = []
     start_idx        = 0
-    type_schedule    = []
-    instruction_list = []
+    type_schedule    = None
+    instruction_list = None
+    saved_target     = 0
+
+    # ============================================================
+    # LOAD CHECKPOINT / BACKUP
+    # ============================================================
 
     if resume:
         loaded_samples, loaded_idx, loaded_types, loaded_instructions, saved_target = \
@@ -773,49 +792,81 @@ def generate_training_data(
 
         if loaded_samples is not None:
             samples          = loaded_samples
-            start_idx        = loaded_idx      # number of valid samples already produced
+            start_idx        = loaded_idx
             type_schedule    = loaded_types
             instruction_list = loaded_instructions
 
             print(f"  ✓ Loaded {len(samples)} existing samples")
             print(f"  ✓ Continuing from schedule index {start_idx}")
-
-            # If target changed, extend schedules
-            if saved_target != target_samples:
-                print(f"  ⚠️  Target changed from {saved_target} to {target_samples}")
-                if target_samples > len(type_schedule):
-                    extra = target_samples - len(type_schedule)
-                    type_schedule    += _type_schedule(extra)
-                    instruction_list += [random.choice(list(INSTRUCTION_VARIANTS.keys()))
-                                         for _ in range(extra)]
         else:
             print("  ℹ️ No valid checkpoint found — starting fresh")
             resume = False
+
+    # ============================================================
+    # FRESH START (NO RESUME)
+    # ============================================================
 
     if not resume or not samples:
         samples          = []
         start_idx        = 0
         type_schedule    = _type_schedule(target_samples)
+
         instruction_list = []
         for variant, weight in INSTRUCTION_WEIGHTS.items():
             instruction_list.extend([variant] * int(target_samples * weight))
+
         while len(instruction_list) < target_samples:
             instruction_list.append(random.choice(list(INSTRUCTION_VARIANTS.keys())))
+
         random.shuffle(instruction_list)
 
-        # Save empty checkpoint to confirm directory is writable
         checkpoint_manager.save_checkpoint(
             samples, 0, type_schedule, instruction_list, target_samples
         )
 
+    # ============================================================
+    # FIX FOR BACKUP RESTORE (CRITICAL FIX)
+    # ============================================================
+
+    if type_schedule is None or instruction_list is None:
+        print("  ⚠️  Backup loaded without schedule metadata. Regenerating schedule...")
+
+        type_schedule = _type_schedule(target_samples)
+
+        instruction_list = []
+        for variant, weight in INSTRUCTION_WEIGHTS.items():
+            instruction_list.extend([variant] * int(target_samples * weight))
+
+        while len(instruction_list) < target_samples:
+            instruction_list.append(random.choice(list(INSTRUCTION_VARIANTS.keys())))
+
+        random.shuffle(instruction_list)
+
+    # ============================================================
+    # HANDLE TARGET CHANGE SAFELY
+    # ============================================================
+
+    if saved_target != target_samples:
+        print(f"  ⚠️  Target changed from {saved_target} to {target_samples}")
+
+        if target_samples > len(type_schedule):
+            extra = target_samples - len(type_schedule)
+
+            type_schedule += _type_schedule(extra)
+            instruction_list += [
+                random.choice(list(INSTRUCTION_VARIANTS.keys()))
+                for _ in range(extra)
+            ]
+
+    # ============================================================
+    # GENERATION START
+    # ============================================================
 
     remaining_needed = target_samples - len(samples)
     if remaining_needed <= 0:
         print(f"  ✓ Already have {len(samples)} samples — nothing to do.")
         return samples, credit_tracker
 
-    # Build work-item list for remaining schedule slots
-    # Schedule slots start_idx … target_samples-1
     work_items = [
         (i, type_schedule[i], instruction_list[i], credit_tracker)
         for i in range(start_idx, target_samples)
@@ -832,7 +883,7 @@ def generate_training_data(
         futures = {executor.submit(_worker, item): item for item in work_items}
 
         for future in as_completed(futures):
-            # Stop submitting / collecting if budget gone
+
             if credit_tracker.credit_limit_reached:
                 print("\n  ❌ Budget limit — cancelling remaining futures...")
                 for f in futures:
@@ -852,7 +903,6 @@ def generate_training_data(
 
                 print(f"  [{completed_attempts}/{total_work}] idx={idx} {status}", flush=True)
 
-                # Periodic progress report
                 if completed_attempts % 50 == 0:
                     print(
                         f"\n  📊 {completed_attempts}/{total_work} attempts | "
@@ -861,7 +911,6 @@ def generate_training_data(
                         f"~{credit_tracker.estimate_samples_remaining()} samples left in budget\n"
                     )
 
-                # Save checkpoint every save_interval new valid samples
                 if len(samples) - last_checkpoint_count >= save_interval:
                     checkpoint_manager.save_checkpoint(
                         samples, len(samples),
@@ -870,22 +919,26 @@ def generate_training_data(
                     )
                     last_checkpoint_count = len(samples)
 
-                # Stop collecting once we have enough valid samples
                 if len(samples) >= target_samples:
                     print(f"\n  ✅ Reached target {target_samples} valid samples — stopping workers.")
                     for f in futures:
                         f.cancel()
                     break
 
-    # Final checkpoint
+    # ============================================================
+    # FINAL CHECKPOINT
+    # ============================================================
+
     checkpoint_manager.save_checkpoint(
-        samples, len(samples), type_schedule, instruction_list, target_samples
+        samples, len(samples),
+        type_schedule, instruction_list,
+        target_samples
     )
 
     print(f"\n  ✓ Generation complete: {len(samples)} valid | {failed_count} failed")
     credit_tracker.print_summary()
-    return samples, credit_tracker
 
+    return samples, credit_tracker
 # ============================================================
 # OUTPUT HELPERS
 # ============================================================

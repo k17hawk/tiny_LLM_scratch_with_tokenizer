@@ -221,3 +221,4 @@ OLMo-2-1124-7B/
 process_training
 dataset/
 *.gguf
+*.jsonl
