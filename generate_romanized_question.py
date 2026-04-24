@@ -16,7 +16,7 @@ from pathlib import Path
 import requests
 
 
-API_KEY             = "sk-rrrrrrr"         
+API_KEY             =  "sk-22222"        
 BASE_URL            = "https://api.deepseek.com/v1/chat/completions"
 MODEL               = "deepseek-chat"
 
@@ -24,14 +24,14 @@ TEST_SAMPLES        = 10
 PRODUCTION_SAMPLES  = 1000
 BATCH_SIZE          = 3
 MAX_HEAL_ROUNDS     = 3
-OUTPUT_DIR          = "training_data"
-CHECKPOINT_DIR      = "checkpoints"
+OUTPUT_DIR          = "training_data_romanized"
+CHECKPOINT_DIR      = "checkpoints_romanized"
 
 # Thread-safe lock for shared state mutations
 _lock = threading.Lock()
 
 # ============================================================
-# INSTRUCTION VARIANTS
+# INSTRUCTION VARIANTS (Devanagari, unchanged)
 # ============================================================
 
 INSTRUCTION_VARIANTS = {
@@ -95,84 +95,86 @@ INSTRUCTION_WEIGHTS = {
 }
 
 # ============================================================
-# QUESTION TEMPLATES
+# ROMANIZED QUESTION TEMPLATES
 # ============================================================
 
-QUESTION_TEMPLATES = {
+ROMANIZED_QUESTION_TEMPLATES = {
     "answerable": {
         "numerical": [
-            "{} कति हो?",
-            "{} को दर कति छ?",
-            "{} रकम कति तोकिएको छ?",
-            "{} मा कति {} पाइन्छ?",
+            "{} kati ho?",
+            "{} ko dar kati chha?",
+            "{} rakam kati tokiyeko chha?",
+            "{} ma kati {} painchha?",
         ],
         "procedural": [
-            "{} गर्न के के चाहिन्छ?",
-            "{} को लागि कुन कागजात आवश्यक पर्छ?",
-            "{} कसरी गर्न सकिन्छ?",
-            "{} सक्रिय गर्न के गर्नुपर्छ?",
+            "{} garna ke ke chahinchha?",
+            "{} ko lagi kun kagajat aawashyak parchha?",
+            "{} kasari garna sakinchha?",
+            "{} sakriya garna ke garnuparchha?",
         ],
         "conditional": [
-            "{} भएमा के हुन्छ?",
-            "{} पुरा नगरेमा के परिणाम हुन्छ?",
-            "{} को सर्त के के हुन्?",
-            "कति रकम सम्म {} बिना {} गर्न सकिन्छ?",
+            "{} bhayema ke hunchha?",
+            "{} pura nagarema ke parinam hunchha?",
+            "{} ko sarta ke ke hun?",
+            "Kati rakam samma {} bina {} garna sakinchha?",
         ],
         "comparative": [
-            "{} र {} मा के फरक छ?",
-            "{} को {} कति र {} को {} कति हो?",
-            "{} भन्दा {} मा के बढी छ?",
+            "{} ra {} ma ke farak chha?",
+            "{} ko {} kati ra {} ko {} kati ho?",
+            "{} bhanda {} ma ke badi chha?",
         ]
     },
     "unavailable": {
         "numerical": [
-            "{} को अधिकतम रकम कति हो?",
-            "{} को न्यूनतम ब्याजदर कति हो?",
-            "{} को शुल्क कति लाग्छ?",
-            "{} कहिले सुरु भयो?",
-            "{} को स्थापना मिति कति हो?",
-            "{} को विदेशी मुद्रा दर कति हो?",
+            "{} ko adhiktam rakam kati ho?",
+            "{} ko nyuntam byajdar kati ho?",
+            "{} ko shulk kati lagchha?",
+            "{} kahile suru bhayo?",
+            "{} ko sthapana miti kati ho?",
+            "{} ko bideshi mudra dar kati ho?",
         ],
         "procedural": [
-            "{} अनलाइनबाट गर्न सकिन्छ?",
-            "{} को लागि कति दिन लाग्छ?",
-            "{} गर्न कुन बैंक जानुपर्छ?",
+            "{} online bata garna sakinchha?",
+            "{} ko lagi kati din lagchha?",
+            "{} garna kun bank januparchha?",
         ],
         "conditional": [
-            "{} भन्दा कम भएमा के हुन्छ?",
-            "{} नगरेमा कुनै छुट पाइन्छ?",
-            "{} को नियम कहिले परिवर्तन भयो?",
+            "{} bhanda kam bhayema ke hunchha?",
+            "{} nagarema kunai chhut painchha?",
+            "{} ko niyam kahile parivartan bhayo?",
         ]
     },
     "multi_part": {
         "numerical": [
-            "{} को {} र {} को {} कति कति हो?",
-            "{} र {} को {} बीच के के फरक छन्?",
-            "{} को {} के हो र {} को {} के हो?",
+            "{} ko {} ra {} ko {} kati kati ho?",
+            "{} ra {} ko {} bich ke ke farak chhan?",
+            "{} ko {} ke ho ra {} ko {} ke ho?",
         ],
         "conditional": [
-            "{} भन्दा बढी भएमा के गर्नुपर्छ र {} भन्दा कम भएमा के हुन्छ?",
-            "{} गर्न के गर्नुपर्छ र {} नगरेमा के हुन्छ?",
-            "कति रकम सम्म {} बिना {} गर्न सकिन्छ र कति भन्दा बढीमा {} चाहिन्छ?",
+            "{} bhanda badi bhayema ke garnuparchha ra {} bhanda kam bhayema ke hunchha?",
+            "{} garna ke garnuparchha ra {} nagarema ke hunchha?",
+            "Kati rakam samma {} bina {} garna sakinchha ra kati bhanda badima {} chahinchha?",
         ],
         "comparative": [
-            "{} को {} र {} को {} के के हुन् र कुन राम्रो छ?",
-            "{} र {} को {} को तुलना गर्नुहोस्।",
-            "{} को {} र {} को {} बताउनुहोस् र फरक स्पष्ट गर्नुहोस्।",
+            "{} ko {} ra {} ko {} ke ke hun ra kun ramro chha?",
+            "{} ra {} ko {} ko tulana garnuhos.",
+            "{} ko {} ra {} ko {} bataunuhos ra farak spasta garnuhos.",
         ]
     },
     "short_learning": {
         "definition": [
-            "{} भनेको के हो?",
-            "{} को परिभाषा के हो?",
-            "{} लाई कसरी बुझ्नुहुन्छ?",
-            "{} भन्नाले के बुझिन्छ?",
+            "{} bhaneko ke ho?",
+            "{} ko paribhasha ke ho?",
+            "{} lai kasari bujhnuhunchha?",
+            "{} bhannale ke bujincha?",
         ]
     },
 }
 
 # ============================================================
 # SEED CONTEXTS
+# Each context now carries BOTH Devanagari entities (for context text)
+# AND romanized_entities (for question generation — all Romanized Nepali).
 # ============================================================
 
 SEED_CONTEXTS = [
@@ -184,6 +186,11 @@ SEED_CONTEXTS = [
             "thing": "बचत खाता",
             "amount": "१,००० रुपैयाँ",
             "rate": "५.५%",
+        },
+        "romanized_entities": {
+            "thing": "bachat khata",
+            "amount": "1,000 rupaiyan",
+            "rate": "5.5%",
         }
     },
     {
@@ -195,6 +202,12 @@ SEED_CONTEXTS = [
             "min_amount": "५०,००० रुपैयाँ",
             "rate": "७.५%",
             "penalty": "०.५%"
+        },
+        "romanized_entities": {
+            "thing": "muddati niksep",
+            "min_amount": "50,000 rupaiyan",
+            "rate": "7.5%",
+            "penalty": "0.5%"
         }
     },
     {
@@ -205,6 +218,11 @@ SEED_CONTEXTS = [
             "thing": "गृह कर्जा",
             "max_term": "२० वर्ष",
             "min_amount": "५,००,००० रुपैयाँ",
+        },
+        "romanized_entities": {
+            "thing": "grih karja",
+            "max_term": "20 barsa",
+            "min_amount": "5,00,000 rupaiyan",
         }
     },
     {
@@ -214,6 +232,10 @@ SEED_CONTEXTS = [
         "entities": {
             "thing": "मोबाइल बैंकिङ",
             "requirement": "बैंकमा दर्ता भएको मोबाइल नम्बर",
+        },
+        "romanized_entities": {
+            "thing": "mobile banking",
+            "requirement": "bank ma darta bhayeko mobile number",
         }
     },
     {
@@ -224,6 +246,11 @@ SEED_CONTEXTS = [
             "thing": "KYC",
             "documents": "नागरिकता, पासपोर्ट साइज फोटो, ठेगाना प्रमाण",
             "renewal_frequency": "२ वर्ष",
+        },
+        "romanized_entities": {
+            "thing": "KYC",
+            "documents": "nagarikta, passport size photo, thegana praman",
+            "renewal_frequency": "2 barsa",
         }
     },
     {
@@ -235,15 +262,12 @@ SEED_CONTEXTS = [
             "threshold": "५ लाख रुपैयाँ",
             "above_requirement": "स्रोत प्रमाण",
             "below_requirement": "बिना कागजात",
-        }
-    },
-    {
-        "topic": "CREDIT_SCORE",
-        "type": "short_learning",
-        "context": "क्रेडिट स्कोर भनेको व्यक्तिको ऋण तिर्ने क्षमता र इतिहासको आधारमा दिइने संख्यात्मक मूल्याङ्कन हो।",
-        "entities": {
-            "term": "क्रेडिट स्कोर",
-            "definition": "व्यक्तिको ऋण तिर्ने क्षमता र इतिहासको आधारमा दिइने संख्यात्मक मूल्याङ्कन"
+        },
+        "romanized_entities": {
+            "thing": "remittance",
+            "threshold": "5 lakh rupaiyan",
+            "above_requirement": "srot praman",
+            "below_requirement": "bina kagajat",
         }
     },
     {
@@ -254,6 +278,11 @@ SEED_CONTEXTS = [
             "thing": "डिजिटल वालेट",
             "requirements": "मोबाइल नम्बर, ईमेल ठेगाना",
             "max_balance": "५०,००० रुपैयाँ"
+        },
+        "romanized_entities": {
+            "thing": "digital wallet",
+            "requirements": "mobile number, email thegana",
+            "max_balance": "50,000 rupaiyan"
         }
     },
     {
@@ -265,11 +294,84 @@ SEED_CONTEXTS = [
             "requirement": "२ वर्षको व्यवसाय दर्ता प्रमाण पत्र",
             "threshold": "१० लाख",
             "condition": "धितो आवश्यक पर्दैन"
+        },
+        "romanized_entities": {
+            "thing": "byabasayik karja",
+            "requirement": "2 barsa ko byabasay darta praman patra",
+            "threshold": "10 lakh",
+            "condition": "dhito aawashyak pardaina"
         }
-    }
+    },
+
+    # ========== SHORT LEARNING EXAMPLES ==========
+    {
+        "topic": "CREDIT_SCORE",
+        "type": "short_learning",
+        "context": "क्रेडिट स्कोर भनेको व्यक्तिको ऋण तिर्ने क्षमता र इतिहासको आधारमा दिइने संख्यात्मक मूल्याङ्कन हो।",
+        "entities": {
+            "term": "क्रेडिट स्कोर",
+            "definition": "व्यक्तिको ऋण तिर्ने क्षमता र इतिहासको आधारमा दिइने संख्यात्मक मूल्याङ्कन"
+        },
+        "romanized_entities": {
+            "term": "credit score",
+            "definition": "byaktiko rin tirne kshamata ra itihasako adharma diine sankhyatmak mulyankan"
+        }
+    },
+    {
+        "topic": "INTEREST",
+        "type": "short_learning",
+        "context": "ब्याज भनेको ऋण लिँदा वा बचत गर्दा मूल रकममा थपिने रकम हो। यो ऋणीले ऋणदातालाई भुक्तानी गर्ने लागत हो।",
+        "entities": {
+            "term": "ब्याज",
+            "definition": "ऋण लिँदा वा बचत गर्दा मूल रकममा थपिने रकम"
+        },
+        "romanized_entities": {
+            "term": "byaj",
+            "definition": "rin linda wa bachat garda mul rakamma thapine rakam"
+        }
+    },
+    {
+        "topic": "LOAN",
+        "type": "short_learning",
+        "context": "कर्जा भनेको एक पक्षले अर्को पक्षलाई दिने पैसा वा सम्पत्ति हो जुन पछि तोकिएको ब्याज सहित फिर्ता गर्नुपर्छ।",
+        "entities": {
+            "term": "कर्जा",
+            "definition": "एक पक्षले अर्को पक्षलाई दिने पैसा वा सम्पत्ति जुन पछि ब्याज सहित फिर्ता गर्नुपर्छ"
+        },
+        "romanized_entities": {
+            "term": "karja",
+            "definition": "ek pakshaley arko pakshalaai dine paisa wa sampatti jun pachhi byaj sahit firta garnuparchha"
+        }
+    },
+    {
+        "topic": "MORTGAGE",
+        "type": "short_learning",
+        "context": "धितो भनेको कर्जा सुरक्षित गर्न राखिने सम्पत्ति वा मूल्यवान वस्तु हो। कर्जा नतिरेमा धितो जफत गर्न सकिन्छ।",
+        "entities": {
+            "term": "धितो",
+            "definition": "कर्जा सुरक्षित गर्न राखिने सम्पत्ति वा मूल्यवान वस्तु"
+        },
+        "romanized_entities": {
+            "term": "dhito",
+            "definition": "karja surakshit garna rakhine sampatti wa mulyawan bastu"
+        }
+    },
+    {
+        "topic": "CHEQUE",
+        "type": "short_learning",
+        "context": "चेक भनेको बैंक खाताबाट निश्चित रकम भुक्तानी गर्न दिइने लिखित आदेश हो। यो नगद रहित कारोबारको माध्यम हो।",
+        "entities": {
+            "term": "चेक",
+            "definition": "बैंक खाताबाट निश्चित रकम भुक्तानी गर्न दिइने लिखित आदेश"
+        },
+        "romanized_entities": {
+            "term": "cheque",
+            "definition": "bank khatabata nishchit rakam bhuktani garna diine likhit adesh"
+        }
+    },
 ]
 
-UNANSWERABLE = "म यो जानकारी प्रदान गरिएको सन्दर्भमा पत्ता लगाउन सक्दिन।"
+UNANSWERABLE = "Ma yo janakari pradan gariyeko sandarbhama patta lagauna sakdina."
 
 # ============================================================
 # VALIDATION
@@ -312,20 +414,25 @@ def validate_type_consistency(sample: dict) -> list:
 
 # ============================================================
 # QUESTION GENERATION
+# All entity substitutions now use romanized_entities so questions
+# are fully Romanized Nepali with zero Devanagari leakage.
 # ============================================================
 
 def generate_question(context_data: Dict, question_type: str) -> str:
     context_type = context_data["type"]
-    entities = context_data.get("entities", {})
-    topic = context_data["topic"]
+    # Always use romanized_entities for question generation
+    entities = context_data.get("romanized_entities", context_data.get("entities", {}))
+    topic_raw = context_data["topic"]
+    # Derive a Romanized fallback from the topic key (already ASCII)
+    topic = topic_raw.lower().replace("_", " ")
 
     if question_type == "short_learning":
-        templates = QUESTION_TEMPLATES["short_learning"]["definition"]
+        templates = ROMANIZED_QUESTION_TEMPLATES["short_learning"]["definition"]
     else:
-        templates = QUESTION_TEMPLATES.get(question_type, {}).get(context_type, ["{} के हो?"])
+        templates = ROMANIZED_QUESTION_TEMPLATES.get(question_type, {}).get(context_type, ["{} ke ho?"])
 
     if not templates:
-        templates = ["{} के हो?"]
+        templates = ["{} ke ho?"]
 
     template = random.choice(templates)
     placeholder_count = template.count("{}")
@@ -335,34 +442,34 @@ def generate_question(context_data: Dict, question_type: str) -> str:
         if context_type == "numerical":
             thing = entities.get("thing", topic)
             if placeholder_count == 1:
-                if "दर" in template or "ब्याज" in template:
-                    args = [f"{thing} को ब्याजदर"]
-                elif "रकम" in template:
-                    args = [f"{thing} को न्यूनतम रकम"]
+                if "dar" in template or "byaj" in template:
+                    args = [f"{thing} ko byajdar"]
+                elif "rakam" in template:
+                    args = [f"{thing} ko nyuntam rakam"]
                 else:
                     args = [thing]
             elif placeholder_count == 2:
-                args = [thing, entities.get("rate", "ब्याजदर")]
+                args = [thing, entities.get("rate", "byajdar")]
             else:
                 args = [thing] * placeholder_count
         elif context_type == "procedural":
             thing = entities.get("thing", topic)
             if placeholder_count == 1:
-                args = [f"{thing} अपडेट" if "कागजात" in template else f"{thing} सक्रिय"]
+                args = [f"{thing} apdet" if "kagajat" in template else f"{thing} sakriya"]
             else:
                 args = [thing] + [topic] * (placeholder_count - 1)
         elif context_type == "conditional":
             thing = entities.get("thing", topic)
-            threshold = entities.get("threshold", "निश्चित रकम")
+            threshold = entities.get("threshold", "nischit rakam")
             if placeholder_count == 1:
-                args = [threshold if "भन्दा बढी" in template else thing]
+                args = [threshold if "bhanda badi" in template else thing]
             elif placeholder_count == 2:
                 args = [thing, threshold]
             else:
                 args = [thing] * placeholder_count
         elif context_type == "comparative":
-            thing1 = entities.get("thing1", "पहिलो")
-            thing2 = entities.get("thing2", "दोस्रो")
+            thing1 = entities.get("thing1", "pahilo")
+            thing2 = entities.get("thing2", "dosro")
             args = [thing1, thing2] if placeholder_count == 2 else [thing1] * placeholder_count
 
     elif question_type == "unavailable":
@@ -372,8 +479,8 @@ def generate_question(context_data: Dict, question_type: str) -> str:
     elif question_type == "multi_part":
         if context_type == "numerical":
             thing = entities.get("thing", topic)
-            attr1 = entities.get("rate", "दर")
-            attr2 = entities.get("penalty", "जरिवाना")
+            attr1 = entities.get("rate", "dar")
+            attr2 = entities.get("penalty", "jarivana")
             if placeholder_count == 4:
                 args = [thing, attr1, thing, attr2]
             elif placeholder_count == 3:
@@ -384,8 +491,8 @@ def generate_question(context_data: Dict, question_type: str) -> str:
                 args = [thing] * placeholder_count
         elif context_type == "conditional":
             thing = entities.get("thing", topic)
-            threshold = entities.get("threshold", "सीमा")
-            requirement = entities.get("above_requirement", "कागजात")
+            threshold = entities.get("threshold", "sima")
+            requirement = entities.get("above_requirement", "kagajat")
             if placeholder_count == 3:
                 args = [threshold, requirement, thing]
             elif placeholder_count == 2:
@@ -394,13 +501,13 @@ def generate_question(context_data: Dict, question_type: str) -> str:
                 args = [thing] * placeholder_count
         elif context_type == "comparative":
             if placeholder_count == 4:
-                args = ["बचत खाता", "ब्याजदर", "चल्ती खाता", "ब्याजदर"]
+                args = ["bachat khata", "byajdar", "chalti khata", "byajdar"]
             elif placeholder_count == 3:
-                args = ["बचत खाता", "चल्ती खाता", "ब्याजदर"]
+                args = ["bachat khata", "chalti khata", "byajdar"]
             elif placeholder_count == 2:
-                args = ["बचत खाता", "चल्ती खाता"]
+                args = ["bachat khata", "chalti khata"]
             else:
-                args = ["बचत खाता"] * placeholder_count
+                args = ["bachat khata"] * placeholder_count
 
     elif question_type == "short_learning":
         term = entities.get("term", topic)
@@ -471,7 +578,7 @@ def call_api(prompt: str, temperature: float = 0.3) -> Tuple[Optional[str], Opti
             print(f"  ❌ Authentication failed - Check your API key")
         elif e.response.status_code == 429:
             print(f"  ❌ Rate limit hit - backing off...")
-            time.sleep(5)   # extra back-off on 429 inside worker
+            time.sleep(5)
         else:
             print(f"  ❌ API HTTP error: {e}")
         return None, None
@@ -536,14 +643,12 @@ class CheckpointManager:
             latest_checkpoint = max(checkpoints, key=lambda x: x.stat().st_mtime) if checkpoints else None
             latest_backup     = max(backups, key=lambda x: x.stat().st_mtime) if backups else None
 
-            # Extract counts
             def extract_count(path):
                 return int(re.search(r'_(\d+)\.json$', path.name).group(1))
 
             checkpoint_count = extract_count(latest_checkpoint) if latest_checkpoint else 0
             backup_count     = extract_count(latest_backup) if latest_backup else 0
 
-            # 🔥 Choose the better one
             if latest_backup and backup_count > checkpoint_count:
                 print(f"  🚀 Using backup instead of checkpoint: {latest_backup.name}")
                 with open(latest_backup, "r", encoding="utf-8") as f:
@@ -576,7 +681,7 @@ class CheckpointManager:
             old.unlink()
 
 # ============================================================
-# CREDIT TRACKER  (thread-safe)
+# CREDIT TRACKER
 # ============================================================
 
 class CreditTracker:
@@ -592,7 +697,6 @@ class CreditTracker:
         self._lock                 = threading.Lock()
 
     def track_usage(self, usage: Dict) -> bool:
-        """Thread-safe usage tracking. Returns False if budget exceeded."""
         if not usage:
             return True
         with self._lock:
@@ -636,15 +740,15 @@ def generate_single_sample(question_type: str, instruction_variant: str,
                             credit_tracker: Optional[CreditTracker] = None,
                             retry_count: int = 0) -> Optional[Dict]:
     context_data = select_context(question_type)
-    context      = context_data["context"]
-    question     = generate_question(context_data, question_type)
-    instruction  = INSTRUCTION_VARIANTS[instruction_variant]
+    context      = context_data["context"]          # Devanagari — used in input field only
+    question     = generate_question(context_data, question_type)  # fully Romanized
+    instruction  = INSTRUCTION_VARIANTS[instruction_variant]       # Devanagari
 
     if question_type == "answerable":
         type_instruction = (
             f'CRITICAL: This is an ANSWERABLE question. The answer MUST be in the context.\n'
             f'DO NOT output "{UNANSWERABLE}" for this question type.\n'
-            f'Extract the EXACT answer from the context verbatim.\n'
+            f'Extract the EXACT answer from the context and provide it in ROMANIZED NEPALI (English alphabet).\n'
             f'If you cannot find the answer, check the context again - it IS there.'
         )
     elif question_type == "unavailable":
@@ -657,34 +761,37 @@ def generate_single_sample(question_type: str, instruction_variant: str,
         type_instruction = (
             'CRITICAL: This is a MULTI-PART question.\n'
             'Extract ALL relevant sentences from the context that answer each part.\n'
+            'Provide the answer in ROMANIZED NEPALI (English alphabet).\n'
             'If some parts are not in context, answer only what is available.'
         )
     else:
         type_instruction = "Follow the rules below strictly."
 
+    # The input field: context in Devanagari + question in Romanized Nepali
+    input_field = f"सन्दर्भ: {context}\\nप्रश्न: {question}"
+
     prompt = f"""Generate a QA sample with these specifications:
 
 Instruction: {instruction}
 
-Context: {context}
+Context (Devanagari): {context}
 
-Question: {question}
+Question (Romanized Nepali): {question}
 
 Question Type: {question_type}
 
 {type_instruction}
 
-Rules:
-- If answerable: Extract exact answer from context verbatim. NEVER say you cannot answer.
-- If unavailable: Output exactly: "{UNANSWERABLE}"
-- If multi_part: Extract ALL relevant sentences from context
-- If short_learning: Extract only the definition sentence
+IMPORTANT SCRIPT RULES:
+- "instruction" field → Devanagari Nepali (already provided above, copy exactly)
+- "input" field → context in Devanagari + question in Romanized Nepali (already formatted below)
+- "output" field → Romanized Nepali ONLY (English alphabet, e.g. "bachat khata ma 5.5% byaj painchha"). NEVER use Devanagari script in the output.
 
 Return ONLY this JSON object (no markdown, no extra text, no explanation):
 {{
     "instruction": "{instruction}",
-    "input": "सन्दर्भ: {context}\\nप्रश्न: {question}",
-    "output": "<answer here>",
+    "input": "{input_field}",
+    "output": "<answer in Romanized Nepali — no Devanagari>",
     "metadata": {{
         "topic": "{context_data['topic']}",
         "question_type": "{question_type}",
@@ -718,6 +825,10 @@ Return ONLY this JSON object (no markdown, no extra text, no explanation):
         sample = json.loads(response)
 
         if sample:
+            # --- Post-processing guard: ensure question in input is Romanized ---
+            # Replace the input field with our locally-generated version to be safe
+            sample["input"] = f"सन्दर्भ: {context}\nप्रश्न: {question}"
+
             if question_type == "answerable" and sample.get("output", "").strip() == UNANSWERABLE:
                 if retry_count < 2:
                     print(f"    🔄 Answerable got unanswerable response, retrying...")
@@ -747,7 +858,6 @@ Return ONLY this JSON object (no markdown, no extra text, no explanation):
 
 
 def _worker(args) -> Tuple[int, Optional[Dict]]:
-    """Thread-pool worker. Returns (original_index, sample_or_None)."""
     idx, question_type, instruction_variant, credit_tracker = args
     try:
         sample = generate_single_sample(question_type, instruction_variant, credit_tracker)
@@ -757,7 +867,7 @@ def _worker(args) -> Tuple[int, Optional[Dict]]:
         return idx, None
 
 # ============================================================
-# MAIN GENERATION LOOP  (concurrent)
+# MAIN GENERATION LOOP
 # ============================================================
 
 def generate_training_data(
@@ -782,10 +892,6 @@ def generate_training_data(
     instruction_list = None
     saved_target     = 0
 
-    # ============================================================
-    # LOAD CHECKPOINT / BACKUP
-    # ============================================================
-
     if resume:
         loaded_samples, loaded_idx, loaded_types, loaded_instructions, saved_target = \
             checkpoint_manager.load_latest_checkpoint()
@@ -801,10 +907,6 @@ def generate_training_data(
         else:
             print("  ℹ️ No valid checkpoint found — starting fresh")
             resume = False
-
-    # ============================================================
-    # FRESH START (NO RESUME)
-    # ============================================================
 
     if not resume or not samples:
         samples          = []
@@ -824,10 +926,6 @@ def generate_training_data(
             samples, 0, type_schedule, instruction_list, target_samples
         )
 
-    # ============================================================
-    # FIX FOR BACKUP RESTORE (CRITICAL FIX)
-    # ============================================================
-
     if type_schedule is None or instruction_list is None:
         print("  ⚠️  Backup loaded without schedule metadata. Regenerating schedule...")
 
@@ -842,10 +940,6 @@ def generate_training_data(
 
         random.shuffle(instruction_list)
 
-    # ============================================================
-    # HANDLE TARGET CHANGE SAFELY
-    # ============================================================
-
     if saved_target != target_samples:
         print(f"  ⚠️  Target changed from {saved_target} to {target_samples}")
 
@@ -857,10 +951,6 @@ def generate_training_data(
                 random.choice(list(INSTRUCTION_VARIANTS.keys()))
                 for _ in range(extra)
             ]
-
-    # ============================================================
-    # GENERATION START
-    # ============================================================
 
     remaining_needed = target_samples - len(samples)
     if remaining_needed <= 0:
@@ -925,10 +1015,6 @@ def generate_training_data(
                         f.cancel()
                     break
 
-    # ============================================================
-    # FINAL CHECKPOINT
-    # ============================================================
-
     checkpoint_manager.save_checkpoint(
         samples, len(samples),
         type_schedule, instruction_list,
@@ -939,6 +1025,7 @@ def generate_training_data(
     credit_tracker.print_summary()
 
     return samples, credit_tracker
+
 # ============================================================
 # OUTPUT HELPERS
 # ============================================================
@@ -1067,7 +1154,6 @@ def test_single_generation():
 # ============================================================
 
 def main():
-    # Allow API key via environment variable
     global API_KEY
     env_key = os.environ.get("DEEPSEEK_API_KEY", "")
     if env_key:
