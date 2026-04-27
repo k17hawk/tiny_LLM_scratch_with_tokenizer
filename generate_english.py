@@ -16,7 +16,7 @@ from pathlib import Path
 import requests
 
 
-API_KEY             = "88888"         
+API_KEY             = "sk-555"         
 BASE_URL            = "https://api.deepseek.com/v1/chat/completions"
 MODEL               = "deepseek-chat"
 
@@ -30,10 +30,7 @@ CHECKPOINT_DIR      = "checkpoints_english"
 # Thread-safe lock for shared state mutations
 _lock = threading.Lock()
 
-# ============================================================
-# INSTRUCTION VARIANTS  (Nepali instructions, but now they expect
-# English unanswerable string)
-# ============================================================
+
 INSTRUCTION_VARIANTS = {
     "formal": (
         "प्रदान गरिएको सन्दर्भ मात्र प्रयोग गरी जवाफ दिनुहोस्।\n\n"
@@ -1034,9 +1031,6 @@ def display_samples(samples: List[Dict], max_display: int = 5):
         print(f"  Input:  {s.get('input', '')[:150]}...")
         print(f"  Output: {s.get('output', '')[:150]}...")
 
-# ============================================================
-# TEST
-# ============================================================
 
 def test_single_generation():
     print("\n" + "=" * 60)
