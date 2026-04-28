@@ -16,7 +16,7 @@ from pathlib import Path
 import requests
 
 
-API_KEY             = "sk-555"         
+API_KEY             = "sk"         
 BASE_URL            = "https://api.deepseek.com/v1/chat/completions"
 MODEL               = "deepseek-chat"
 
