@@ -21,6 +21,7 @@ FOLD_TABLE = {
     "\u0938\u0919\u094D\u0917": "\u0938\u0901\u0917",
 }
 
+
 def normalize(text: str) -> str:
     text = unicodedata.normalize("NFC", text)
     for variant, canon in FOLD_TABLE.items():
@@ -28,56 +29,91 @@ def normalize(text: str) -> str:
     text = text.replace("\u200D", "")
     return text
 
+
 DEVANAGARI_RANGE = (0x0900, 0x097F)
 DEV_VOWEL_SIGNS = set(range(0x093E, 0x094D)) | {0x0902, 0x0901, 0x0903, 0x093A, 0x093B}
 DEV_VIRAMA = 0x094D
 ZWNJ = "\u200C"
 ZWJ = "\u200D"
 
+
 def is_devanagari(cp: int) -> bool:
     return DEVANAGARI_RANGE[0] <= cp <= DEVANAGARI_RANGE[1]
+
 
 class AksharaTokenizer:
     @staticmethod
     def tokenize_devanagari(text: str) -> List[str]:
         tokens = []
-        current = []
+        buffer = []
         i = 0
         while i < len(text):
             ch = text[i]
             cp = ord(ch)
+
             if ch == ZWNJ:
-                if current:
-                    tokens.append("".join(current))
-                    current = []
+                if buffer:
+                    tokens.append("".join(buffer))
+                    buffer = []
                 tokens.append(ZWNJ)
                 i += 1
                 continue
+
             if not is_devanagari(cp):
-                if current:
-                    tokens.append("".join(current))
-                    current = []
+                if buffer:
+                    tokens.append("".join(buffer))
+                    buffer = []
                 tokens.append(ch)
                 i += 1
                 continue
 
-            current.append(ch)
-            if cp in DEV_VOWEL_SIGNS or (0x0904 <= cp <= 0x0914) or (0x0960 <= cp <= 0x0963):
-                tokens.append("".join(current))
-                current = []
-            elif cp == DEV_VIRAMA:
-                pass
-            else:
-                if i + 1 < len(text) and ord(text[i + 1]) == DEV_VIRAMA:
-                    pass
-                else:
-                    tokens.append("".join(current))
-                    current = []
+            # Independent vowel – always a standalone akshara
+            if (0x0904 <= cp <= 0x0914) or (0x0960 <= cp <= 0x0963):
+                if buffer:
+                    tokens.append("".join(buffer))
+                    buffer = []
+                tokens.append(ch)
+                i += 1
+                continue
+
+            # Vowel signs, anusvara, visarga, candrabindu – attach to current consonant(s)
+            if cp in DEV_VOWEL_SIGNS:
+                buffer.append(ch)
+                tokens.append("".join(buffer))
+                buffer = []
+                i += 1
+                continue
+
+            # Virama – does not end an akshara; continue in buffer
+            if cp == DEV_VIRAMA:
+                buffer.append(ch)
+                i += 1
+                # If virama is at end of text, close buffer (halanta form)
+                if i >= len(text):
+                    tokens.append("".join(buffer))
+                    buffer = []
+                continue
+
+            # Consonant
+            buffer.append(ch)
             i += 1
 
-        if current:
-            tokens.append("".join(current))
+            if i >= len(text):
+                tokens.append("".join(buffer))
+                buffer = []
+                continue
+
+            next_cp = ord(text[i])
+            if next_cp == DEV_VIRAMA or next_cp in DEV_VOWEL_SIGNS:
+                continue       # stay in buffer
+            # Next char starts a new syllable
+            tokens.append("".join(buffer))
+            buffer = []
+
+        if buffer:
+            tokens.append("".join(buffer))
         return tokens
+
 
 def script_of(token: str, vocab_info: Dict[str, Set[str]]) -> str:
     if token in vocab_info["zwnj"]:
@@ -89,6 +125,7 @@ def script_of(token: str, vocab_info: Dict[str, Set[str]]) -> str:
     if any(is_devanagari(ord(c)) for c in token):
         return "DEV"
     return "LAT"
+
 
 class ParadigmStore:
     def __init__(self):
@@ -106,6 +143,7 @@ class ParadigmStore:
         if root not in self.transitions:
             return set()
         return set()
+
 
 class NepBPETokenizer:
     def __init__(
@@ -169,6 +207,10 @@ class NepBPETokenizer:
         for seg in protected:
             if seg in self.v_seed:
                 final_tokens.append(seg)
+            elif seg in self.punctuation_set:
+                final_tokens.append(seg)
+            elif seg == ZWNJ:
+                final_tokens.append(ZWNJ)
             else:
                 sub_tokens = AksharaTokenizer.tokenize_devanagari(seg)
                 final_tokens.extend(sub_tokens)
@@ -328,7 +370,23 @@ class NepBPETokenizer:
 
     def encode(self, text: str) -> List[int]:
         text = normalize(text)
-        tokens = self._initial_tokenize(text)
+        # Split on whitespace but preserve it as tokens
+        import re
+        parts = re.split(r'(\s+)', text)
+        tokens = []
+        for part in parts:
+            if part.isspace():
+                # Handle each whitespace character individually
+                for ch in part:
+                    if ch in self.token2id:
+                        tokens.append(ch)
+                    else:
+                        # Add space to vocab on the fly if needed
+                        self._add_token(ch)
+                        tokens.append(ch)
+            else:
+                tokens.extend(self._initial_tokenize(part))
+
         for a, b, new_id in self.merge_rules:
             new_tokens = []
             i = 0
@@ -340,7 +398,14 @@ class NepBPETokenizer:
                     new_tokens.append(tokens[i])
                     i += 1
             tokens = new_tokens
-        return [self.token2id[tok] for tok in tokens]
+
+        # Ensure all tokens have IDs
+        result = []
+        for tok in tokens:
+            if tok not in self.token2id:
+                self._add_token(tok)
+            result.append(self.token2id[tok])
+        return result
 
     def decode(self, ids: List[int]) -> str:
         tokens = [self.id2token[i] for i in ids]
@@ -350,23 +415,28 @@ class NepBPETokenizer:
         ids = []
         i = 0
         while i < len(data):
-            try:
-                for length in range(1, 5):
-                    if i + length > len(data):
-                        break
-                    try:
-                        chunk = data[i:i+length].decode("utf-8")
-                    except UnicodeDecodeError:
-                        continue
-                    ids.extend(self.encode(chunk))
+            # Try to decode as UTF-8 starting at position i
+            decoded = False
+            for length in range(1, min(5, len(data) - i + 1)):
+                chunk = data[i:i+length]
+                try:
+                    text = chunk.decode("utf-8")
+                    # If we get here, we have valid UTF-8
+                    # Encode the decoded text
+                    ids.extend(self.encode(text))
                     i += length
+                    decoded = True
                     break
-                else:
-                    ids.append(self.token2id[f"<0x{data[i]:02X}>"])
-                    i += 1
-            except:
-                ids.append(self.token2id[f"<0x{data[i]:02X}>"])
+                except UnicodeDecodeError:
+                    continue
+            
+            if not decoded:
+                # Single byte fallback
+                byte_val = data[i]
+                token = f"<0x{byte_val:02X}>"
+                ids.append(self.token2id[token])
                 i += 1
+
         return ids
 
     def decode_bytes(self, ids: List[int]) -> bytes:
