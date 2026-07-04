@@ -88,7 +88,6 @@ class AksharaTokenizer:
             if cp == DEV_VIRAMA:
                 buffer.append(ch)
                 i += 1
-                # If virama is at end of text, close buffer (halanta form)
                 if i >= len(text):
                     tokens.append("".join(buffer))
                     buffer = []
@@ -128,21 +127,87 @@ def script_of(token: str, vocab_info: Dict[str, Set[str]]) -> str:
 
 
 class ParadigmStore:
-    def __init__(self):
-        self.transitions = {}
+    """
+    Stores morphological paradigm information for Nepali roots.
+    Enables the Morph constraint by tracking allowed transitions.
+    """
 
-    def allowed_next(self, root: str, state: str, nxt: str) -> bool:
-        if root not in self.transitions:
+    def __init__(self):
+        # state -> set of allowed next tokens
+        self.root_rules: Dict[str, Set[str]] = {}
+        # reverse index: next_token -> set of states that can precede it (optional)
+        self.reverse_index: Dict[str, Set[str]] = {}
+        # all known roots
+        self.roots: Set[str] = set()
+        # state -> root
+        self.state_to_root: Dict[str, str] = {}
+        # root -> set of states (including the root itself)
+        self.root_to_states: Dict[str, Set[str]] = {}
+
+    def add_root(self, root: str, transitions: Dict[str, Set[str]]) -> None:
+        """
+        Add a root with its allowed transitions.
+        transitions: a dict mapping a state (token) to a set of allowed next tokens.
+        The root itself must be one of the keys.
+        """
+        self.roots.add(root)
+        if root not in transitions:
+            transitions[root] = set()   # ensure root is present
+
+        for state, next_tokens in transitions.items():
+            self.state_to_root[state] = root
+            self.root_to_states.setdefault(root, set()).add(state)
+            self.root_rules[state] = next_tokens
+
+        self._build_reverse_index()
+
+    def _build_reverse_index(self) -> None:
+        self.reverse_index.clear()
+        for state, allowed in self.root_rules.items():
+            for nxt in allowed:
+                if nxt not in self.reverse_index:
+                    self.reverse_index[nxt] = set()
+                self.reverse_index[nxt].add(state)
+
+    def allowed_next(self, root: str, state: str, candidate: str) -> bool:
+        """Check if 'candidate' can follow 'state' under the given root."""
+        # state must belong to this root
+        if state not in self.root_to_states.get(root, set()):
             return False
-        st = self.transitions[root]
-        if state not in st:
-            return False
-        return nxt in st[state]
+        return candidate in self.root_rules.get(state, set())
 
     def prefixes_of(self, root: str) -> Set[str]:
-        if root not in self.transitions:
-            return set()
-        return set()
+        """Return all states (prefixes) associated with this root."""
+        return self.root_to_states.get(root, set()).copy()
+
+    def get_roots_for_token(self, token: str) -> Set[str]:
+        """Return the root(s) that own this token (usually just one)."""
+        root = self.state_to_root.get(token)
+        return {root} if root is not None else set()
+
+    def __repr__(self) -> str:
+        return f"ParadigmStore(roots={len(self.roots)}, states={len(self.state_to_root)})"
+
+
+# Helper function to create the sample store used in tests
+def build_sample_store():
+    """Create a small paradigm store with two roots."""
+    store = ParadigmStore()
+
+    # Root "जा" (go)
+    store.add_root("जा", {
+        "जा":   {"नु", "यो", "ने", "दा"},
+        "जानु": {"हो", "छ"},
+        "जायो": {"।"},
+    })
+
+    # Root "ग" (do)
+    store.add_root("ग", {
+        "ग":   {"र्नु", "रे", "र्यो"},
+        "गर्नु": {"होस्", "पर्छ"},
+    })
+
+    return store
 
 
 class NepBPETokenizer:
@@ -221,15 +286,22 @@ class NepBPETokenizer:
         return [self._initial_tokenize(word) for word in words]
 
     def _root_set(self, token: str) -> Set[str]:
+        """Return the morphological root(s) for a given token."""
         if token in self.v_seed:
             return set()
-        return set()
+        root = self.paradigm.state_to_root.get(token)
+        return {root} if root is not None else set()
 
     def _morph(self, a: str, b: str) -> bool:
+        """Morph constraint: allow merge only if it is a valid paradigm transition."""
         roots = self._root_set(a)
         if not roots:
-            return True
-        return any(self.paradigm.allowed_next(root, a, b) for root in roots)
+            return True   # no restriction
+        # a must belong to a root; check if b is allowed from state a for any root
+        for root in roots:
+            if self.paradigm.allowed_next(root, a, b):
+                return True
+        return False
 
     def _script_compat(self, a: str, b: str) -> bool:
         sa = script_of(a, self.vocab_info)
@@ -283,6 +355,8 @@ class NepBPETokenizer:
 
         merges_done = 0
         total_merges_budget = vocab_size - len(self.id2token) - latin_budget
+        if total_merges_budget < 0:
+            total_merges_budget = 0
 
         while merges_done < total_merges_budget and heap:
             prio, a, b, snap_freq = heapq.heappop(heap)
@@ -370,18 +444,15 @@ class NepBPETokenizer:
 
     def encode(self, text: str) -> List[int]:
         text = normalize(text)
-        # Split on whitespace but preserve it as tokens
         import re
         parts = re.split(r'(\s+)', text)
         tokens = []
         for part in parts:
             if part.isspace():
-                # Handle each whitespace character individually
                 for ch in part:
                     if ch in self.token2id:
                         tokens.append(ch)
                     else:
-                        # Add space to vocab on the fly if needed
                         self._add_token(ch)
                         tokens.append(ch)
             else:
@@ -399,7 +470,6 @@ class NepBPETokenizer:
                     i += 1
             tokens = new_tokens
 
-        # Ensure all tokens have IDs
         result = []
         for tok in tokens:
             if tok not in self.token2id:
@@ -415,28 +485,22 @@ class NepBPETokenizer:
         ids = []
         i = 0
         while i < len(data):
-            # Try to decode as UTF-8 starting at position i
             decoded = False
             for length in range(1, min(5, len(data) - i + 1)):
                 chunk = data[i:i+length]
                 try:
                     text = chunk.decode("utf-8")
-                    # If we get here, we have valid UTF-8
-                    # Encode the decoded text
                     ids.extend(self.encode(text))
                     i += length
                     decoded = True
                     break
                 except UnicodeDecodeError:
                     continue
-            
             if not decoded:
-                # Single byte fallback
                 byte_val = data[i]
                 token = f"<0x{byte_val:02X}>"
                 ids.append(self.token2id[token])
                 i += 1
-
         return ids
 
     def decode_bytes(self, ids: List[int]) -> bytes:
