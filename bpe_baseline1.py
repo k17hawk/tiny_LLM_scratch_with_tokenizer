@@ -12,7 +12,7 @@ trainer = trainers.BpeTrainer(
 )
 
 
-with open("dataset_ne/ne.txt", "r", encoding="utf-8") as f:
+with open("gold_segmentation.txt", "r", encoding="utf-8") as f:
     tokenizer.train_from_iterator(f, trainer=trainer)
 
 tokenizer.save("baseline_byte_bpe.json")
