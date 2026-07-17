@@ -1,10 +1,10 @@
 [package]
-name = "tiny_llm_scratch_with_tokenizer"
+name = "HimalayanTOK_Nepali_64K"
 version = "0.1.0"
 edition = "2021"               # stable edition
 
 [lib]
-name = "tiny_llm_scratch_with_tokenizer"
+name = "HimalayanTOK_Nepali_64K"
 crate-type = ["cdylib"]
 
 [dependencies]

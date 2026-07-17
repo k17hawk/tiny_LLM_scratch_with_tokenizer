@@ -18,8 +18,8 @@ import re
 import statistics
 import unicodedata
 from collections import Counter
-from tiny_llm_scratch_with_tokenizer import PyNepBPETokenizer
 
+from HimalayanTOK_Nepali_64K import PyHimalayanTOK_Nepali_64K
 VOCAB_TSV = "vocab_nepbpe/nepbpe_vocab_bilingual_v4.tsv"
 #"nepbpe_vocab.tsv"
 FOLDING_RULES = [("सङ्ग", "संग"), ("सँग", "संग")]
@@ -70,7 +70,7 @@ def main():
         print(__doc__)
         return
 
-    tok = PyNepBPETokenizer(folding_rules=FOLDING_RULES)
+    tok = PyHimalayanTOK_Nepali_64K(folding_rules=FOLDING_RULES)
     n = tok.load_vocab_tsv(VOCAB_TSV)
     space_id = tok.vocab_get_id(SPACE_PIECE)
     print(f"loaded {n} tokens from {VOCAB_TSV}\n")

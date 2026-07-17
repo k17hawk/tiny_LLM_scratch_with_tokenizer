@@ -1,8 +1,8 @@
 import sys
 import statistics
 import time
-from tiny_llm_scratch_with_tokenizer import PyNepBPETokenizer
 
+from HimalayanTOK_Nepali_64K import PyHimalayanTOK_Nepali_64K
 VOCAB_TSV = "vocab_nepbpe/nepbpe_vocab_bilingual_v4.tsv"
 
 # MUST be identical to what you trained with (train.py). I4f these differ,
@@ -75,7 +75,7 @@ SAMPLES = [
 
 
 def main(test_file=None) -> None:
-    tok = PyNepBPETokenizer(folding_rules=FOLDING_RULES)
+    tok = PyHimalayanTOK_Nepali_64K(folding_rules=FOLDING_RULES)
     n = tok.load_vocab_tsv(VOCAB_TSV)
     print(f"loaded {n} tokens from {VOCAB_TSV}\n")
 

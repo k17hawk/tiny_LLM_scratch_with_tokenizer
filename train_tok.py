@@ -17,7 +17,7 @@ Run:
 
 import time
 import sys
-from tiny_llm_scratch_with_tokenizer import PyNepBPETokenizer
+from tiny_llm_scratch_with_tokenizer import PyHimalayanTOK_Nepali_64K
 
 # ----------------------------------------------------------------------------
 # Config
@@ -141,7 +141,7 @@ def _show_pieces(tok, ids):
 
 
 def main() -> None:
-    tok = PyNepBPETokenizer(folding_rules=FOLDING_RULES)
+    tok = PyHimalayanTOK_Nepali_64K(folding_rules=FOLDING_RULES)
 
     base = tok.initialize_vocab(
         DEVANAGARI,

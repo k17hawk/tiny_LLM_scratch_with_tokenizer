@@ -1133,7 +1133,7 @@ impl ConstrainedBPETrainer {
 // ============================================================================
 
 #[allow(dead_code)]
-pub struct NepBPETokenizer {
+pub struct HimalayanTOK_Nepali_64K {
     pub normalizer: Normalizer,
     pub akshara_dfa: AksharaDFA,
     pub vocab: Vocabulary,
@@ -1143,11 +1143,11 @@ pub struct NepBPETokenizer {
     paradigm_embedding: HashMap<TokenId, Option<RootId>>,
     /// Longest punctuation-containing seed surface, in CHARS. Caps the atomic
     /// abbreviation pre-scan in encode_normalized. 0 = no such seeds, so the
-    /// pre-scan is skipped entirely. Set by PyNepBPETokenizer::initialize_vocab.
+    /// pre-scan is skipped entirely. Set by PyHimalayanTOK_Nepali_64K::initialize_vocab.
     seed_max_len: usize,
 }
 
-impl NepBPETokenizer {
+impl HimalayanTOK_Nepali_64K {
     pub fn new(fold_rules: Vec<(String, String)>, paradigm_registry: ParadigmRegistry) -> Self {
         Self {
             normalizer: Normalizer::new(fold_rules),
@@ -1170,7 +1170,7 @@ impl NepBPETokenizer {
     /// not training-ready (strict/ambiguous/roots are not restored).
     ///
     /// CRITICAL: also recompute `seed_max_len` here. It is normally set in
-    /// PyNepBPETokenizer::initialize_vocab, but a load-only workflow (encode /
+    /// PyHimalayanTOK_Nepali_64K::initialize_vocab, but a load-only workflow (encode /
     /// fertility scripts that call load_vocab_tsv and never initialize_vocab)
     /// would otherwise leave it at 0 — which makes try_emit_atomic_seed early-
     /// return on every call, so seeded abbreviations like गा.वि.स. silently
@@ -1501,12 +1501,12 @@ impl NepBPETokenizer {
 // ============================================================================
 
 #[pyclass]
-pub struct PyNepBPETokenizer {
-    inner: NepBPETokenizer,
+pub struct PyHimalayanTOK_Nepali_64K {
+    inner: HimalayanTOK_Nepali_64K,
 }
 
 #[pymethods]
-impl PyNepBPETokenizer {
+impl PyHimalayanTOK_Nepali_64K {
     /// Blocker 4: pass folding rules as a list of (pattern, replacement) string
     /// pairs, e.g. [("सङ्ग", "संग"), ("सँग", "संग")], instead of a char->char dict.
     #[new]
@@ -1514,7 +1514,7 @@ impl PyNepBPETokenizer {
     fn new(folding_rules: Option<Vec<(String, String)>>) -> PyResult<Self> {
         let rules = folding_rules.unwrap_or_default();
         let registry = ParadigmRegistry::new();
-        let inner = NepBPETokenizer::new(rules, registry);
+        let inner = HimalayanTOK_Nepali_64K::new(rules, registry);
         Ok(Self { inner })
     }
 
@@ -2024,6 +2024,8 @@ impl PyNepBPETokenizer {
         Ok(self.inner.vocab.len())
     }
 
+    
+
     /// Load the vocab from a TSV written by the training driver ("id\tsurface"),
     /// reversing the tab/newline/backslash escaping. Encode/decode-ready.
     fn load_vocab_tsv(&mut self, path: String) -> PyResult<usize> {
@@ -2069,8 +2071,8 @@ impl PyNepBPETokenizer {
     }
 }
 
-#[pymodule]
-fn tiny_llm_scratch_with_tokenizer(m: Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<PyNepBPETokenizer>()?;
+#[pymodule(name = "HimalayanTOK_Nepali_64K")]
+fn himalayan_tok(m: Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<PyHimalayanTOK_Nepali_64K>()?;
     Ok(())
 }
