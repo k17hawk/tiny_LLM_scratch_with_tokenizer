@@ -113,6 +113,8 @@ fn unescape_tsv(s: &str) -> String {
     out
 }
 
+
+
 fn bytes_to_unicode() -> [char; 256] {
     let mut table = ['\u{0}'; 256];
     let mut n: u32 = 0;
@@ -1133,6 +1135,7 @@ impl ConstrainedBPETrainer {
 // ============================================================================
 
 #[allow(dead_code)]
+#[allow(non_camel_case_types)]
 pub struct HimalayanTOK_Nepali_64K {
     pub normalizer: Normalizer,
     pub akshara_dfa: AksharaDFA,
@@ -1501,6 +1504,7 @@ impl HimalayanTOK_Nepali_64K {
 // ============================================================================
 
 #[pyclass]
+#[allow(non_camel_case_types)]
 pub struct PyHimalayanTOK_Nepali_64K {
     inner: HimalayanTOK_Nepali_64K,
 }
@@ -2024,7 +2028,19 @@ impl PyHimalayanTOK_Nepali_64K {
         Ok(self.inner.vocab.len())
     }
 
-    
+    #[staticmethod]
+    fn escape_tsv(s: &str) -> String {
+        let mut out = String::with_capacity(s.len());
+        for ch in s.chars() {
+            match ch {
+                '\\' => out.push_str("\\\\"),
+                '\t' => out.push_str("\\t"),
+                '\n' => out.push_str("\\n"),
+                _ => out.push(ch),
+            }
+        }
+        out
+    }
 
     /// Load the vocab from a TSV written by the training driver ("id\tsurface"),
     /// reversing the tab/newline/backslash escaping. Encode/decode-ready.
@@ -2068,6 +2084,46 @@ impl PyHimalayanTOK_Nepali_64K {
             .vocab
             .get_surface(id)
             .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("Invalid token ID"))
+    }
+
+    fn get_vocab_dict(&self, py: Python<'_>) -> PyResult<Py<PyDict>> {
+        let dict = PyDict::new(py);
+        for (id, surf) in self.inner.vocab.get_all_surfaces() {
+            dict.set_item(surf, id)?;
+        }
+        Ok(dict.into())
+    }
+
+    /// Tokenizes text into a list of token strings (not IDs).
+    /// This is used by Hugging Face's `_tokenize()` method.
+    fn tokenize_to_strings(&self, text: &str) -> Vec<String> {
+        let ids = self.inner.encode(text);
+        ids.iter()
+            .filter_map(|&id| self.inner.vocab.get_surface(id))
+            .collect()
+    }
+
+    /// Saves the vocabulary to a TSV file ("id\tunescaped_surface").
+    /// Symmetrical to load_vocab_tsv — matches the driver's escaping.
+    fn save_vocab_tsv(&self, path: String) -> PyResult<()> {
+        use std::fs::File;
+        use std::io::Write;
+
+        let mut pairs = self.inner.vocab.get_all_surfaces();
+        pairs.sort_by_key(|(id, _)| *id);
+
+        let f = File::create(&path).map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("create {}: {}", path, e))
+        })?;
+        let mut writer = std::io::BufWriter::new(f);
+
+        for (id, surf) in pairs {
+            let escaped = Self::escape_tsv(&surf);
+            writeln!(writer, "{}\t{}", id, escaped).map_err(|e| {
+                PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("write: {}", e))
+            })?;
+        }
+        Ok(())
     }
 }
 
