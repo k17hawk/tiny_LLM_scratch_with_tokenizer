@@ -10,10 +10,9 @@ class HimalayanTokenizer(PreTrainedTokenizer):
     """
     Hugging Face tokenizer wrapper for the Rust-based HimalayanTOK_Nepali_64K.
 
-    IMPORTANT: special tokens ([CLS], [SEP], [PAD], [UNK], [MASK]) must already
-    exist in the Rust vocab (seeded via initialize_vocab's `punctuation` /
-    `seed_morphemes` args, or present in the TSV loaded by load_vocab_tsv).
-    This wrapper cannot inject new tokens into the Rust vocab at runtime.
+    Special tokens ([CLS], [SEP], etc.) are handled as "added tokens" in Python.
+    The decode() method is overridden to use the Rust decoder, which correctly
+    converts ▁/▂ markers to spaces and strips the dummy prefix.
     """
 
     vocab_files_names = {"vocab_file": "vocab.tsv"}
@@ -44,51 +43,33 @@ class HimalayanTokenizer(PreTrainedTokenizer):
             **kwargs,
         )
 
-        self._verify_special_tokens_present()
-
-    def _verify_special_tokens_present(self):
-        """Fail loudly at load time rather than silently at first encode()."""
-        missing = [
-            tok
-            for tok in (
-                self.unk_token,
-                self.cls_token,
-                self.sep_token,
-                self.pad_token,
-                self.mask_token,
-            )
-            if tok is not None and self.rust_tokenizer.vocab_get_id(tok) is None
-        ]
-        if missing:
-            raise ValueError(
-                f"Special tokens missing from the Rust vocab: {missing}. "
-                "Seed them via initialize_vocab(...) or the loaded TSV before "
-                "constructing HimalayanTokenizer."
-            )
-
     # ---- Required overrides ----
 
     @property
     def vocab_size(self) -> int:
-        return self.rust_tokenizer.vocab_size()
+        return self.rust_tokenizer.vocab_size() + len(self.added_tokens_encoder)
 
     def _tokenize(self, text: str) -> List[str]:
         return self.rust_tokenizer.tokenize_to_strings(text)
 
     def _convert_token_to_id(self, token: str) -> int:
+        if token in self.added_tokens_encoder:
+            return self.added_tokens_encoder[token]
         token_id = self.rust_tokenizer.vocab_get_id(token)
         if token_id is None:
-            return self.rust_tokenizer.vocab_get_id(self.unk_token)
+            return self.unk_token_id
         return token_id
 
     def _convert_id_to_token(self, index: int) -> str:
+        if index in self.added_tokens_decoder:
+            return self.added_tokens_decoder[index]
         try:
             return self.rust_tokenizer.get_token_surface(index)
         except ValueError:
             return self.unk_token
 
     def get_vocab(self) -> Dict[str, int]:
-        vocab = self.rust_tokenizer.get_vocab_dict()
+        vocab = dict(self.rust_tokenizer.get_vocab_dict())
         vocab.update(self.added_tokens_encoder)
         return vocab
 
@@ -102,7 +83,28 @@ class HimalayanTokenizer(PreTrainedTokenizer):
         self.rust_tokenizer.save_vocab_tsv(vocab_file)
         return (vocab_file,)
 
-    # ---- Optional but recommended for full compatibility ----
+    # ---- Override decode to use the Rust decoder ----
+
+    def decode(
+        self,
+        token_ids: List[int],
+        skip_special_tokens: bool = False,
+        clean_up_tokenization_spaces: Optional[bool] = None,
+        **kwargs,
+    ) -> str:
+        """
+        Decode a list of token IDs to a string, using the Rust tokenizer's
+        decoder which correctly handles ▁/▂ markers.
+        """
+        # If skip_special_tokens, filter out all special token IDs
+        if skip_special_tokens:
+            special_ids = set(self.all_special_ids)
+            token_ids = [tid for tid in token_ids if tid not in special_ids]
+
+        # Use the Rust decoder (this removes markers and the dummy prefix)
+        return self.rust_tokenizer.decode(token_ids)
+
+    # ---- Special token methods (unchanged) ----
 
     def build_inputs_with_special_tokens(
         self, token_ids_0: List[int], token_ids_1: Optional[List[int]] = None

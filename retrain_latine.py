@@ -16,25 +16,23 @@ Then:
     python retrain_latin.py
 """
 import sys
-from datetime import time
+import time
 from HimalayanTOK_Nepali_64K import PyHimalayanTOK_Nepali_64K
 # ----------------------------------------------------------------------------
 # Config
 # ----------------------------------------------------------------------------
 IN_VOCAB   = "vocab_nepbpe/nepbpe_vocab_bilingual_new.tsv"   # frozen DEV vocab
-OUT_VOCAB  = "vocab_nepbpe/nepbpe_vocab_bilingual_v3.tsv"    # DEV + new LAT
+OUT_VOCAB  = "vocab_nepbpe/nepbpe_vocab_bilingual_v9.tsv"    # DEV + new LAT
 
 
-# Point this at english_only.txt if you ran extract_english.py; otherwise the
-# full blended corpus works too (word-level Latin filtering keeps memory small,
-# but you pay the full streaming time).
-ENGLISH_PATH = "words_baseline4.txt"
+
+ENGLISH_PATH = "fileweb_wikipedia_english.txt"
 
 # English saturates faster than Devanagari but 4k was too thin. 8-12k is the
 # sweet spot; go higher only if the fertility report still shows heavy Latin
 # fragmentation. Because Devanagari is frozen, spending more here costs nothing
 # on the Devanagari side.
-LAT_BUDGET = 16_000
+LAT_BUDGET = 24_000
 
 # English types are few (small alphabet), so 1 is usually fine on memory here —
 # unlike the Devanagari build. Raise if RAM is tight.
