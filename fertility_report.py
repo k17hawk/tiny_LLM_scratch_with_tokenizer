@@ -20,7 +20,7 @@ import unicodedata
 from collections import Counter
 
 from HimalayanTOK_Nepali_64K import PyHimalayanTOK_Nepali_64K
-VOCAB_TSV = "vocab_nepbpe/nepbpe_vocab_bilingual_v4.tsv"
+VOCAB_TSV = "vocab_nepbpe/nepbpe_vocab_bilingual_v9.tsv"
 #"nepbpe_vocab.tsv"
 FOLDING_RULES = [("सङ्ग", "संग"), ("सँग", "संग")]
 SPACE_PIECE = "\u0120"
