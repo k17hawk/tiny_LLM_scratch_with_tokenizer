@@ -21,18 +21,18 @@ from HimalayanTOK_Nepali_64K import PyHimalayanTOK_Nepali_64K
 # ----------------------------------------------------------------------------
 # Config
 # ----------------------------------------------------------------------------
-IN_VOCAB   = "vocab_nepbpe/nepbpe_vocab_bilingual_new.tsv"   # frozen DEV vocab
-OUT_VOCAB  = "vocab_nepbpe/nepbpe_vocab_bilingual_v9.tsv"    # DEV + new LAT
+IN_VOCAB   = "vocab_nepbpe/nepbpe_vocab_bilingual_v9.tsv"   # frozen DEV vocab
+OUT_VOCAB  = "vocab_nepbpe/nepbpe_vocab_bilingual_v10.tsv"    # DEV + new LAT
 
 
 
-ENGLISH_PATH = "fileweb_wikipedia_english.txt"
+ENGLISH_PATH = "final_corpus.txt"
 
 # English saturates faster than Devanagari but 4k was too thin. 8-12k is the
 # sweet spot; go higher only if the fertility report still shows heavy Latin
 # fragmentation. Because Devanagari is frozen, spending more here costs nothing
 # on the Devanagari side.
-LAT_BUDGET = 24_000
+LAT_BUDGET = 28_000
 
 # English types are few (small alphabet), so 1 is usually fine on memory here —
 # unlike the Devanagari build. Raise if RAM is tight.
